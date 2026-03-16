@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+
+# Environment
+.env
+
+# Output
+signals/*.json
+
+# macOS
+.DS_Store
