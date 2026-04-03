@@ -25,7 +25,7 @@ class SignalEngine:
         self.technical = technical or TechnicalAnalyzer()
         self.sentiment = sentiment or SentimentAnalyzer(use_mock=True)
         self.vision = vision
-        self.weights = fusion_weights or FUSION_WEIGHTS
+        self.weights = fusion_weights or FUSION_WEIGHTS  # weights must sum to 1.0
 
     def generate_signal(
         self,
