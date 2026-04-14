@@ -23,7 +23,7 @@ class SignalEngine:
         fusion_weights: dict | None = None,
     ):
         self.technical = technical or TechnicalAnalyzer()
-        self.sentiment = sentiment or SentimentAnalyzer(use_mock=True)
+        self.sentiment = sentiment or SentimentAnalyzer(use_mock=True)  # live mode downloads ~400MB FinBERT
         self.vision = vision
         self.weights = fusion_weights or FUSION_WEIGHTS  # weights must sum to 1.0
 
