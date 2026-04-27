@@ -13,7 +13,11 @@ from src.vision_demo import MockVisionAnalyzer
 
 
 class SignalEngine:
-    """Dual-path signal engine with configurable fusion weights."""
+    """Dual-path signal engine with configurable fusion weights.
+
+    Fused signal = tech_weight * technical_score + sent_weight * sentiment_score.
+    Confidence = 1.0 - |technical_score - sentiment_score|.
+    """
 
     def __init__(
         self,
