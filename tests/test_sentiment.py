@@ -84,6 +84,44 @@ class TestMockSentiment:
 
 
 
+    def test_probs_dict_shape(self, analyzer):
+
+        result = analyzer.analyze_headline("Bitcoin surges to new record high")
+
+        assert "probs" in result
+
+        assert set(result["probs"].keys()) == {"positive", "neutral", "negative"}
+
+        assert abs(sum(result["probs"].values()) - 1.0) < 1e-6
+
+
+
+    def test_low_confidence_collapses_to_neutral(self):
+
+        analyzer = SentimentAnalyzer(use_mock=True, confidence_threshold=0.99)
+
+        result = analyzer.analyze_headline("Bitcoin surges to new record high")
+
+        assert result["signal"] == 0.0
+
+
+
+    def test_confidence_threshold_configurable(self):
+
+        relaxed = SentimentAnalyzer(use_mock=True, confidence_threshold=0.10)
+
+        strict = SentimentAnalyzer(use_mock=True, confidence_threshold=0.99)
+
+        relaxed_signal = relaxed.analyze_headline("Crypto market crash wipes billions")["signal"]
+
+        strict_signal = strict.analyze_headline("Crypto market crash wipes billions")["signal"]
+
+        assert relaxed_signal < 0
+
+        assert strict_signal == 0.0
+
+
+
 
 
 class TestHeadlineAggregation:
