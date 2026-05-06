@@ -29,6 +29,12 @@ FINBERT_MODEL = "ProsusAI/finbert"
 HEADLINES_HOURS_BACK = 24
 HEADLINES_LIMIT = 50
 
+# Confidence floor for FinBERT predictions. Any headline whose top-class
+# probability is below this value collapses to a neutral signal of 0.0,
+# so genuinely-mixed predictions don't leak noise into the fused score.
+# Tuned on the headline sweep in notebooks/threshold_sweep.md (default 0.55).
+SENTIMENT_CONFIDENCE_THRESHOLD = 0.55
+
 # Signal output
 SIGNAL_OUTPUT_DIR = "signals"
 

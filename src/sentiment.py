@@ -3,17 +3,29 @@
 Uses the ProsusAI/finbert model via HuggingFace transformers for local inference.
 No API calls — the model downloads (~400MB) on first use and is cached.
 A mock mode is available for tests and demos without model download.
+
+The signal is computed as ``probs["positive"] - probs["negative"]`` over the
+full softmax across the three FinBERT classes. A confidence floor zeroes out
+predictions whose top-class probability falls below ``confidence_threshold``,
+so genuinely-mixed headlines collapse to neutral instead of leaking noise
+into the fused signal downstream.
 """
 
-from src.config import FINBERT_MODEL
+from src.config import FINBERT_MODEL, SENTIMENT_CONFIDENCE_THRESHOLD
 
 
 class SentimentAnalyzer:
     """Analyze financial headline sentiment using FinBERT or mock keywords."""
 
-    def __init__(self, model_name: str = FINBERT_MODEL, use_mock: bool = False):
+    def __init__(
+        self,
+        model_name: str = FINBERT_MODEL,
+        use_mock: bool = False,
+        confidence_threshold: float = SENTIMENT_CONFIDENCE_THRESHOLD,
+    ):
         self.model_name = model_name
         self.use_mock = use_mock
+        self.confidence_threshold = confidence_threshold
         self._pipeline = None
 
     def _load_model(self):
@@ -39,34 +51,52 @@ class SentimentAnalyzer:
         neg_count = sum(1 for w in negative_words if w in h)
 
         if pos_count > neg_count:
-            return {"label": "positive", "score": 0.85, "signal": 0.85}
+            probs = {"positive": 0.85, "neutral": 0.10, "negative": 0.05}
         elif neg_count > pos_count:
-            return {"label": "negative", "score": 0.80, "signal": -0.80}
+            probs = {"positive": 0.05, "neutral": 0.15, "negative": 0.80}
         else:
-            return {"label": "neutral", "score": 0.60, "signal": 0.0}
+            probs = {"positive": 0.20, "neutral": 0.60, "negative": 0.20}
+
+        return self._build_result(probs)
+
+    def _build_result(self, probs: dict) -> dict:
+        """Apply confidence floor and shape the output dict."""
+        label = max(probs, key=probs.get)
+        max_prob = probs[label]
+
+        if max_prob < self.confidence_threshold:
+            signal = 0.0
+        else:
+            signal = probs.get("positive", 0.0) - probs.get("negative", 0.0)
+
+        return {
+            "label": label,
+            "score": max_prob,
+            "signal": signal,
+            "probs": probs,
+        }
 
     def analyze_headline(self, headline: str) -> dict:
         """Analyze a single headline.
 
         Returns:
-            dict with "label" (str), "score" (float), "signal" (float in [-1, 1]).
+            dict with ``label`` (str), ``score`` (float, top-class probability),
+            ``signal`` (float in [-1, 1], pos minus neg, floored to 0 below
+            ``confidence_threshold``), and ``probs`` (dict of all three class
+            probabilities).
         """
         if self.use_mock:
             return self._mock_sentiment(headline)
 
         self._load_model()
-        result = self._pipeline(headline, truncation=True, max_length=512)[0]
-        label = result["label"]
-        score = result["score"]
+        result = self._pipeline(headline, truncation=True, max_length=512, top_k=None)
+        # top_k=None returns either a flat list of dicts or a list-of-lists
+        # depending on transformers version; normalise.
+        if result and isinstance(result[0], list):
+            result = result[0]
+        probs = {r["label"]: r["score"] for r in result}
 
-        if label == "positive":
-            signal = score
-        elif label == "negative":
-            signal = -score
-        else:
-            signal = 0.0
-
-        return {"label": label, "score": score, "signal": signal}
+        return self._build_result(probs)
 
     def analyze_headlines(self, headlines: list[dict]) -> dict:
         """Analyze multiple headlines and aggregate sentiment.
