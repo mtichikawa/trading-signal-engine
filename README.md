@@ -1,6 +1,6 @@
 # trading-signal-engine · T3
 
-Dual-path signal engine that fuses technical indicators with local FinBERT sentiment analysis to generate trading signals for BTC, ETH, and SOL. 51/51 tests pass without a database connection or model download.
+Dual-path signal engine that fuses technical indicators with local FinBERT sentiment analysis to generate trading signals for BTC, ETH, and SOL. 54/54 tests pass without a database connection or model download.
 
 ---
 
@@ -10,7 +10,7 @@ Dual-path signal engine that fuses technical indicators with local FinBERT senti
 |------|------|--------|
 | T1 · crypto-data-pipeline | Live OHLCV ingestion · market event tagging | Shipped Mar 6 |
 | T2 · trading-chart-generator | Candlestick PNGs + JSON sidecars · 25/25 tests | Shipped Mar 10 |
-| **T3 · trading-signal-engine** | Technical indicators + FinBERT sentiment · 51/51 tests | Shipped Mar 16 |
+| **T3 · trading-signal-engine** | Technical indicators + FinBERT sentiment · 54/54 tests | Shipped Mar 16 |
 | T4 · trading-backtester | Backtesting + parameter sweep · 72/72 tests | Shipped Mar 26 |
 | T5 · trading-dashboard | Streamlit oversight UI · 8/8 tests | Shipped Mar 31 · [Live Demo](https://mtichikawa-trading.streamlit.app) |
 
@@ -30,6 +30,9 @@ Pure pandas/numpy indicators computed from T1 OHLCV data:
 
 ### Sentiment Path
 Local HuggingFace model (`ProsusAI/finbert`) runs inference on news headlines from T1's `news_headlines` table. Downloads ~400MB on first use, then cached. No API calls.
+
+#### Threshold-tuned continuous sentiment
+The sentiment signal is computed as `probs["positive"] - probs["negative"]` over the full softmax across the three FinBERT classes, not the older argmax-with-sign approach. A confidence floor (`SENTIMENT_CONFIDENCE_THRESHOLD = 0.55`) zeroes out predictions whose top-class probability falls below the threshold, so genuinely-mixed predictions like `pos=0.41, neu=0.40, neg=0.19` collapse to neutral instead of leaking noise into the fused signal. Threshold tuned via the sweep in `notebooks/threshold_sweep.md`. The threshold is a constructor parameter, so T4 backtester sweeps can override it without code changes.
 
 ### Signal Fusion
 
@@ -85,9 +88,11 @@ trading-signal-engine/
 │   ├── db_reader.py    # Reads T1 PostgreSQL + T2 chart paths
 │   ├── vision_demo.py  # MockVisionAnalyzer: deterministic chart analysis
 │   └── run.py          # CLI entry point
-├── tests/              # 51 tests, all run without DB or model download
+├── tests/              # 54 tests, all run without DB or model download
 ├── examples/
 │   └── quick_demo.py   # Works without DB or FinBERT download
+├── notebooks/
+│   └── threshold_sweep.md   # FinBERT confidence-floor calibration
 ├── signals/            # JSON signal output (consumed by T4)
 └── requirements.txt
 ```
@@ -119,7 +124,7 @@ python -m src.run
 
 ```bash
 pytest tests/ -v
-# 51/51 — all run in mock mode, no DB or model download
+# 54/54 — all run in mock mode, no DB or model download
 ```
 
 ---
