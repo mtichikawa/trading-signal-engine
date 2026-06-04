@@ -38,6 +38,12 @@ SENTIMENT_CONFIDENCE_THRESHOLD = 0.55
 # Signal output
 SIGNAL_OUTPUT_DIR = "signals"
 
+# T2 chart sidecars. trading-chart-generator writes a JSON sidecar next to each
+# candlestick PNG; in live mode the signal engine reads the most recent sidecar
+# per (pair, timeframe) and folds its trend + volatility band into the
+# technical path. Override via env to point at T2's output directory.
+CHARTS_DIR = os.getenv("CHARTS_DIR", "../trading-chart-generator/charts")
+
 # Database connection (same env vars as T1/T2)
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")

@@ -4,7 +4,8 @@ import argparse
 import json
 import sys
 
-from src.config import PAIRS, TIMEFRAMES
+from src.chart_context import ChartContextReader, chart_context_score
+from src.config import CHARTS_DIR, PAIRS, TIMEFRAMES
 from src.sentiment import SentimentAnalyzer
 from src.signal_engine import SignalEngine
 from src.technical import TechnicalAnalyzer
@@ -47,11 +48,15 @@ def _run_mock(args):
     for pair in pairs:
         for tf in timeframes:
             df = generate_synthetic_ohlcv()
+            # No T2 charts on disk in mock mode — synthesize an equivalent
+            # sidecar from the synthetic data so chart context still runs.
+            sidecar = SignalEngine.synthesize_sidecar(df, pair, tf)
             signal = engine.generate_signal(
                 ohlcv_df=df,
                 headlines=sample_headlines(),
                 pair=pair,
                 timeframe=tf,
+                chart_context=chart_context_score(sidecar["ohlcv_summary"]),
             )
             signals.append(signal)
 
@@ -68,7 +73,11 @@ def _run_live(args):
     sentiment = SentimentAnalyzer(use_mock=False)
     technical = TechnicalAnalyzer()
     vision = MockVisionAnalyzer() if args.vision_demo else None
-    engine = SignalEngine(technical=technical, sentiment=sentiment, vision=vision)
+    chart_reader = ChartContextReader(CHARTS_DIR)
+    engine = SignalEngine(
+        technical=technical, sentiment=sentiment, vision=vision,
+        chart_reader=chart_reader,
+    )
 
     signals = engine.run(
         reader=reader,

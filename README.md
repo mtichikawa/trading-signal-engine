@@ -1,6 +1,6 @@
 # trading-signal-engine · T3
 
-Dual-path signal engine that fuses technical indicators with local FinBERT sentiment analysis to generate trading signals for BTC, ETH, and SOL. 54/54 tests pass without a database connection or model download.
+Dual-path signal engine that fuses technical indicators with local FinBERT sentiment analysis to generate trading signals for BTC, ETH, and SOL. 84/84 tests pass without a database connection or model download.
 
 ---
 
@@ -10,7 +10,7 @@ Dual-path signal engine that fuses technical indicators with local FinBERT senti
 |------|------|--------|
 | T1 · crypto-data-pipeline | Live OHLCV ingestion · market event tagging | Shipped Mar 6 |
 | T2 · trading-chart-generator | Candlestick PNGs + JSON sidecars · 25/25 tests | Shipped Mar 10 |
-| **T3 · trading-signal-engine** | Technical indicators + FinBERT sentiment · 54/54 tests | Shipped Mar 16 |
+| **T3 · trading-signal-engine** | Technical indicators + FinBERT sentiment · 84/84 tests | Shipped Mar 16 |
 | T4 · trading-backtester | Backtesting + parameter sweep · 72/72 tests | Shipped Mar 26 |
 | T5 · trading-dashboard | Streamlit oversight UI · 8/8 tests | Shipped Mar 31 · [Live Demo](https://mtichikawa-trading.streamlit.app) |
 
@@ -48,6 +48,42 @@ Weights are configurable in `config.py` for T4 parameter sweeps. The winning wei
 
 ---
 
+## T2→T3 Integration
+
+T2 (`trading-chart-generator`) writes a JSON sidecar next to every candlestick PNG. That sidecar carries chart-level summary stats — recent range, close, trend direction, and a volatility band — that previously nothing consumed. T3 now reads them.
+
+```
+T2 chart run                          T3 signal run
+─────────────                         ─────────────
+BTC_1h.png                            ChartContextReader.load_summary("BTC/USD", "1h")
+BTC_1h.json  ──(charts_dir)──►          → most recent, non-stale sidecar
+  ohlcv_summary:                      chart_context_score(summary) → [-1, +1]
+    trend, volatility_band_pct          → TechnicalAnalyzer.analyze(df, chart_context=...)
+```
+
+`ChartContextReader` (in `src/chart_context.py`) scans the configured `CHARTS_DIR`, matches sidecars by `pair`/`timeframe`, and returns the freshest non-stale one. Missing, stale, or malformed files fall back to a neutral `0.0` — a missing chart never crashes a signal run.
+
+`chart_context_score(summary)` maps the sidecar to a signal in `[−1, +1]`:
+
+| Sidecar field | Contribution |
+|---------------|--------------|
+| `trend = "up"` | +0.5 |
+| `trend = "down"` | −0.5 |
+| `trend = "flat"` | 0.0 |
+| `volatility_band_pct > 2%` | halves the absolute contribution (uncertain regime) |
+
+The technical path folds this in **inside** its own share — it does not touch the outer 0.6/0.4 fusion:
+
+```
+technical_score = 0.85 × indicators + 0.15 × chart_context   (when a sidecar exists)
+technical_score = 1.00 × indicators                          (no sidecar — backward compatible)
+signal          = 0.6  × technical_score + 0.4 × sentiment_score
+```
+
+In live mode T3 reads real T2 sidecars from `CHARTS_DIR`. In mock mode there are no charts on disk, so `SignalEngine.synthesize_sidecar()` builds an equivalent summary straight from the synthetic OHLCV, letting the demo and tests exercise the full path without T2.
+
+---
+
 ## Output
 
 JSON signal files in `signals/` consumed by T4:
@@ -63,6 +99,7 @@ JSON signal files in `signals/` consumed by T4:
       "confidence": 0.78,
       "technical_score": 0.55,
       "sentiment_score": 0.22,
+      "chart_context": 0.50,
       "indicators": {
         "ema_crossover": 0.60,
         "rsi": 0.30,
@@ -86,9 +123,10 @@ trading-signal-engine/
 │   ├── sentiment.py    # SentimentAnalyzer: local FinBERT + mock mode
 │   ├── signal_engine.py # SignalEngine: orchestrates paths, writes JSON output
 │   ├── db_reader.py    # Reads T1 PostgreSQL + T2 chart paths
+│   ├── chart_context.py # ChartContextReader: reads T2 sidecars → context score
 │   ├── vision_demo.py  # MockVisionAnalyzer: deterministic chart analysis
 │   └── run.py          # CLI entry point
-├── tests/              # 54 tests, all run without DB or model download
+├── tests/              # 84 tests, all run without DB or model download
 ├── examples/
 │   └── quick_demo.py   # Works without DB or FinBERT download
 ├── notebooks/
@@ -124,7 +162,7 @@ python -m src.run
 
 ```bash
 pytest tests/ -v
-# 54/54 — all run in mock mode, no DB or model download
+# 84/84 — all run in mock mode, no DB or model download
 ```
 
 ---

@@ -96,8 +96,15 @@ class TechnicalAnalyzer:
         position = (current - lower_val) / band_width
         return float(np.clip(1 - 2 * position, -1, 1))
 
-    def analyze(self, df: pd.DataFrame) -> dict:
+    def analyze(self, df: pd.DataFrame, chart_context: float | None = None) -> dict:
         """Run all indicators and return composite score.
+
+        Args:
+            df: OHLCV DataFrame.
+            chart_context: optional chart-context signal in [-1, +1] derived
+                from a T2 sidecar. When provided, the composite weights the
+                indicators 0.85 and the chart context 0.15; otherwise the
+                composite is the pure indicator average (backward compatible).
 
         Returns:
             dict with "composite" (float in [-1, 1]) and "indicators" (dict of scores).
@@ -109,7 +116,12 @@ class TechnicalAnalyzer:
             "bollinger": self.compute_bollinger_signal(df),
         }
 
-        composite = float(np.mean(list(indicators.values())))
+        indicator_score = float(np.mean(list(indicators.values())))
+
+        if chart_context is None:
+            composite = indicator_score
+        else:
+            composite = 0.85 * indicator_score + 0.15 * float(chart_context)
         composite = float(np.clip(composite, -1, 1))
 
         return {
