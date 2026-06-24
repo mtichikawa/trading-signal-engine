@@ -170,3 +170,5 @@ pytest tests/ -v
 ## Contact
 
 Mike Ichikawa · [projects.ichikawa@gmail.com](mailto:projects.ichikawa@gmail.com) · [mtichikawa.github.io](https://mtichikawa.github.io)
+
+> _Note: the default 0.6/0.4 technical/sentiment fusion is configurable for parameter sweeps from the T4 backtester. Confidence is computed as `1.0 - |tech - sent|` so disagreement between the two paths lowers the trust score even when the fused signal is strong._
