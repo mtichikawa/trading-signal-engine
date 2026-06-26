@@ -12,6 +12,7 @@ from src.sentiment import SentimentAnalyzer
 from src.signal_engine import SignalEngine
 from src.technical import TechnicalAnalyzer
 from src.vision_demo import MockVisionAnalyzer
+from typing import Any
 
 
 def _make_ohlcv(trend: float = 0.0, n: int = 100) -> pd.DataFrame:
@@ -44,7 +45,7 @@ def headlines():
 
 
 class TestFusionMath:
-    def test_default_weights(self, engine, headlines):
+    def test_default_weights(self, engine: Any, headlines):
         df = _make_ohlcv(trend=0.003)
         signal = engine.generate_signal(df, headlines, "BTC/USD", "1h")
         # Verify fusion: 0.6 * tech + 0.4 * sent
