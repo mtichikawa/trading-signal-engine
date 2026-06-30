@@ -45,7 +45,7 @@ def headlines():
 
 
 class TestFusionMath:
-    def test_default_weights(self, engine: Any, headlines):
+    def test_default_weights(self, engine: Any, headlines: Any):
         df = _make_ohlcv(trend=0.003)
         signal = engine.generate_signal(df, headlines, "BTC/USD", "1h")
         # Verify fusion: 0.6 * tech + 0.4 * sent
